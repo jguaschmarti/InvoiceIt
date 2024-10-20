@@ -114,7 +114,7 @@ def send_image_to_api_and_store(api_key, image_base64, insert_sheet):
                 "content": [
                     {
                         "type": "text",
-                        "text": "Extract the code, item name, price per unit, quantity and discount of the items in the invoice..."
+                        "text": "Extract the code, item name, price per unit, quantity and discount of the items in the invoice, return it in a list of dicts format, price should have two decimals. Also include the date of the invoice in each product in format dd/mm/yyyy. If there is no discount, put 0. If there are rows without quantity or without code, aggregate the price with the first item above with code and quantity. Only return the list, do not return any other text."
                     },
                     {
                         "type": "image_url",
