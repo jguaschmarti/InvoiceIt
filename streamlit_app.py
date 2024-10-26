@@ -69,8 +69,10 @@ def fetch_gsheet_data(sheet):
     return pd.DataFrame(data)
 
 # Convert PDF to base64 images
-def convert_pdf_to_base64(pdf_file):
-    images = convert_from_bytes(pdf_file.read())
+def convert_pdf_to_base64(pdf_file, dpi=300):
+    pdf_file.seek(0)
+    pdf = pdf_file.read()
+    images = convert_from_bytes(pdf, dpi, first_page=1, last_page=1)
     base64_images = []
     for image in images:
         buffered = BytesIO()
@@ -131,7 +133,7 @@ def send_image_to_api_and_store(api_key, image_base64, insert_sheet):
 
     response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
     extracted_items = response.json()['choices'][0]['message']['content']
-    st.write(extracted_items)
+    print(extracted_items)
     extracted_items = eval(extracted_items.strip("```json"))
     append_extracted_data_to_gsheet(insert_sheet, extracted_items)
 
@@ -173,16 +175,36 @@ def process_and_update_product_sheet(insert_sheet, product_sheet):
 # Pages for file upload and data visualization (unchanged)
 def file_upload_page(api_key, insert_sheet, product_sheet):
     st.title("File Upload and Invoice Parsing")
+    
+    # File uploader: allow multiple PDF uploads
     uploaded_files = st.file_uploader("Choose PDF files", accept_multiple_files=True, type=["pdf"])
+    
     if uploaded_files:
-        st.write(f"Uploaded {len(uploaded_files)} files.")
+        # Display the total number of files to process
+        total_files = len(uploaded_files)
+        st.write(f"Uploaded {total_files} files.")
+        
+        # Initialize a progress bar for overall file processing
+        progress_bar = st.progress(0)  # Starting progress
+        total_steps = sum([len(convert_pdf_to_base64(f)) for f in uploaded_files])  # Total steps for all files
+        step = 0  # Current progress step
+        
         for uploaded_file in uploaded_files:
             st.write(f"Processing file: {uploaded_file.name}")
+
+            # Convert PDF to base64 images
             base64_images = convert_pdf_to_base64(uploaded_file)
+            
             for idx, image_base64 in enumerate(base64_images):
-                st.write(f"Sending page {idx + 1} of {uploaded_file.name} to API...")
-                send_image_to_api_and_store(api_key, image_base64, insert_sheet)
-                st.write(f"Data for {uploaded_file.name} added to insert_sheet.")
+                with st.spinner(f"Sending page {idx + 1} of {uploaded_file.name} to API..."):
+                    send_image_to_api_and_store(api_key, image_base64, insert_sheet)
+                
+                # Update the progress bar
+                step += 1
+                progress_bar.progress(step / total_steps)
+        
+        # Final message after processing all files
+        st.success("All files have been processed and data added to the sheet.")
         process_and_update_product_sheet(insert_sheet, product_sheet)
 
 def data_visualization_page(product_sheet):
